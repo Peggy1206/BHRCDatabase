@@ -6,7 +6,7 @@ from linebot.v3.messaging import (
     ReplyMessageRequest,
     TextMessage,
 )
-from linebot.v3.webhook import AsyncWebhookHandler
+from linebot.v3.webhook import WebhookParser
 
 from app.config import settings
 from app.ingest import classify_intent, ingest_with_context, regenerate_questions
@@ -16,7 +16,7 @@ from app.github_client import backup_entry
 from app.file_parser import parse_image_bytes, parse_document_bytes, fetch_url_content
 
 configuration = Configuration(access_token=settings.line_channel_access_token)
-handler = AsyncWebhookHandler(settings.line_channel_secret)
+handler = WebhookParser(settings.line_channel_secret)
 
 # State machine keyed by LINE user_id
 # Shape: { user_id: { "state": str, "entry": dict, "raw": bytes, "filename": str|None } }

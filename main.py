@@ -22,7 +22,7 @@ async def webhook(request: Request):
     body = await request.body()
 
     try:
-        events = await handler.parse(body.decode("utf-8"), signature)
+        events = handler.parse(body.decode("utf-8"), signature)
     except InvalidSignatureError:
         raise HTTPException(status_code=400, detail="Invalid signature")
 

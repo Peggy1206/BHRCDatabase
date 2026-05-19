@@ -6,7 +6,7 @@ from linebot.v3.messaging import (
     ReplyMessageRequest,
     TextMessage,
 )
-from linebot.v3 import AsyncWebhookHandler
+from linebot.v3.webhook import AsyncWebhookHandler
 
 from app.config import settings
 from app.ingest import classify_intent, ingest_with_context, regenerate_questions

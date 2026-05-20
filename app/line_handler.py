@@ -28,6 +28,7 @@ STATE_IDLE = "IDLE"
 STATE_WAITING = "WAITING_FOR_INSIGHT"
 
 REGEN_KEYWORDS = {"換問題", "不滿意", "重新提問", "換個角度", "換一個", "再問一次"}
+GREETING_KEYWORDS = {"哈囉", "hello", "hi", "嗨", "測試", "test"}
 
 MODEL_HAIKU = os.getenv("MODEL_HAIKU", "claude-haiku-4-5-20251001")
 MODEL_SONNET = os.getenv("MODEL_SONNET", "claude-sonnet-4-6")
@@ -140,6 +141,10 @@ async def handle_text(event):
     user_id = event.source.user_id
     text = event.message.text.strip()
     current_state = USER_STATES.get(user_id, {}).get("state", STATE_IDLE)
+
+    if current_state == STATE_IDLE and text.lower() in GREETING_KEYWORDS:
+        await _push(user_id, "你好！請問今天有什麼科技趨勢或商業文章要讓我研讀的嗎？請直接丟給我連結或圖片！")
+        return
 
     if current_state == STATE_WAITING:
         if _is_regen_request(text):

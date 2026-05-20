@@ -110,7 +110,7 @@ async def _append_log(entry: dict, page_url: str, timestamp: str):
         "Title": {"title": _rich_text(entry.get("title", "Untitled"))},
         "Category": {"select": {"name": entry.get("category", "Events")}},
         "Timestamp": {"date": {"start": timestamp}},
-        "Page": {"url": page_url},
+        "Source URL": {"url": page_url},
     }
     if entry.get("source_url"):
         props["Source URL"] = {"url": entry["source_url"]}

@@ -29,11 +29,14 @@ async def webhook(request: Request):
     for event in events:
         if not isinstance(event, MessageEvent):
             continue
-        if isinstance(event.message, TextMessageContent):
-            await handle_text(event)
-        elif isinstance(event.message, ImageMessageContent):
-            await handle_image(event)
-        elif isinstance(event.message, FileMessageContent):
-            await handle_file(event)
+        try:
+            if isinstance(event.message, TextMessageContent):
+                await handle_text(event)
+            elif isinstance(event.message, ImageMessageContent):
+                await handle_image(event)
+            elif isinstance(event.message, FileMessageContent):
+                await handle_file(event)
+        except Exception as e:
+            print(f"[ERROR] Unhandled exception in webhook handler: {e}")
 
     return {"status": "ok"}

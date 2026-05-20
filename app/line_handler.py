@@ -1,4 +1,5 @@
 import asyncio
+import os
 from linebot.v3.messaging import (
     AsyncApiClient,
     AsyncMessagingApi,
@@ -28,8 +29,8 @@ STATE_WAITING = "WAITING_FOR_INSIGHT"
 
 REGEN_KEYWORDS = {"換問題", "不滿意", "重新提問", "換個角度", "換一個", "再問一次"}
 
-MODEL_HAIKU = "claude-3-5-haiku-latest"
-MODEL_SONNET = "claude-3-5-sonnet-latest"
+MODEL_HAIKU = os.getenv("MODEL_HAIKU", "claude-haiku-4-5-20251001")
+MODEL_SONNET = os.getenv("MODEL_SONNET", "claude-sonnet-4-6")
 REGEN_SONNET_THRESHOLD = 2
 
 

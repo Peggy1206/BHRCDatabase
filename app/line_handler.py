@@ -82,8 +82,11 @@ def _build_preview_reply(entry: dict) -> str:
 async def _handle_ingest_input(user_id: str, entry: dict, raw: bytes, filename: str | None):
     """Store entry in state and prompt Bruce for insight. Does NOT write to Notion."""
     if entry.get("_parse_error"):
-        await _push(user_id, "抱歉，這次處理時遇到問題，請再試一次。")
-        await _push(user_id, f"⚠️ [解析失敗內幕]\n{entry.get('_raw_response', '')[:300]}")
+        # 先不要直接放棄，我們看看 Claude 到底吐了什麼奇怪的格式
+        # await _push(user_id, "抱歉，這次處理時遇到問題，請再試一次。")
+        # await _push(user_id, f"⚠️ [解析失敗內幕]\n{entry.get('_raw_response', '')[:300]}")
+        raw_text = entry.get('_raw_response', '沒有內容')
+        await _push(user_id, f"⚠️ Claude 吐出的格式不對，這是它給的原始內容：\n{raw_text[:400]}")
         return
     USER_STATES[user_id] = {
         "state": STATE_WAITING_INSIGHT,

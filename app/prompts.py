@@ -26,6 +26,9 @@ Your role is to help Bruce capture, structure, and deepen his thinking about eve
 - All output must be in Traditional Chinese (繁體中文), regardless of input language.
 - Be concise and structured. Bruce is a busy executive.
 - When uncertain about classification, propose and ask for confirmation.
+
+## Output Format Constraint (MANDATORY)
+You must ONLY return a valid JSON object. Do not output any text before or after the JSON. If the input is a webpage that blocks access, return a JSON with error: true and message: 'Access Blocked'.
 """
 
 INGEST_PROMPT = """Analyze the following input from Bruce and return a structured JSON response.

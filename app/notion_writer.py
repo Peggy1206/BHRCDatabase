@@ -104,6 +104,33 @@ async def write_entry(entry: dict) -> str:
     return page_url
 
 
+async def get_latest_theory() -> str:
+    """Read Bruce's 20/20 theory from the Notion Log Database page titled '20/20理論設定'."""
+    try:
+        results = await notion.databases.query(
+            database_id=settings.notion_log_database_id,
+            filter={"property": "Title", "title": {"equals": "20/20理論設定"}},
+            page_size=1,
+        )
+        pages = results.get("results", [])
+        if not pages:
+            return ""
+        page_id = pages[0]["id"]
+        blocks_response = await notion.blocks.children.list(block_id=page_id)
+        parts = []
+        for block in blocks_response.get("results", []):
+            block_type = block.get("type", "")
+            rich_text = block.get(block_type, {}).get("rich_text", [])
+            for rt in rich_text:
+                plain = rt.get("plain_text", "")
+                if plain:
+                    parts.append(plain)
+        return "\n".join(parts)
+    except Exception as e:
+        print(f"[WARN] get_latest_theory failed: {e}")
+        return ""
+
+
 async def _append_log(entry: dict, page_url: str, timestamp: str):
     """Append one row to the log database."""
     props = {

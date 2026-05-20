@@ -1,3 +1,4 @@
+import asyncio
 import json
 import re
 import anthropic
@@ -51,13 +52,15 @@ def classify_intent(message: str) -> str:
     return result.get("intent", "ingest")
 
 
-def ingest_text(text: str, model: str) -> dict:
+def ingest_text(text: str, model: str, bruce_theory: str = "") -> dict:
     """Process text input and return structured knowledge entry."""
+    theory_fill = bruce_theory if bruce_theory else "[尚未設定 — 請在 Notion 建立「20/20理論設定」頁面]"
+    system = SYSTEM_PROMPT.replace("<<BRUCE_THEORY>>", theory_fill)
     response = client.messages.create(
         model=model,
         max_tokens=2000,
         temperature=0.2,
-        system=SYSTEM_PROMPT,
+        system=system,
         messages=[
             {"role": "user", "content": INGEST_PROMPT.format(input_text=text)}
         ],
@@ -65,14 +68,18 @@ def ingest_text(text: str, model: str) -> dict:
     return _extract_json(response.content[0].text)
 
 
-def ingest_with_context(text: str, source_type: str, model: str, source_url: str = None) -> dict:
-    """Ingest with additional source metadata."""
+async def ingest_with_context(text: str, source_type: str, model: str, source_url: str = None) -> dict:
+    """Ingest with additional source metadata and dynamic 20/20 theory."""
+    from app.notion_writer import get_latest_theory
+
     prefix = ""
     if source_url:
         prefix += f"[Source URL: {source_url}]\n\n"
     if source_type != "text":
         prefix += f"[Input type: {source_type}]\n\n"
-    entry = ingest_text(prefix + text, model=model)
+
+    bruce_theory = await get_latest_theory()
+    entry = await asyncio.to_thread(ingest_text, prefix + text, model, bruce_theory)
     if source_url:
         entry["source_url"] = source_url
     return entry

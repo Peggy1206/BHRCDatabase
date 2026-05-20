@@ -54,7 +54,7 @@ def classify_intent(message: str) -> str:
 
 def ingest_text(text: str, model: str, bruce_theory: str = "") -> dict:
     """Process text input and return structured knowledge entry."""
-    theory_fill = bruce_theory if bruce_theory else "[尚未設定 — 請在 Notion 建立「20/20理論設定」頁面]"
+    theory_fill = bruce_theory if bruce_theory else "目前使用者尚未設定具體理論框架。請運用您內建的商業常識與專業視角進行深度摘要，並務必嚴格遵守輸出 JSON 格式的指令。"
     system = SYSTEM_PROMPT.replace("<<BRUCE_THEORY>>", theory_fill)
     response = client.messages.create(
         model=model,

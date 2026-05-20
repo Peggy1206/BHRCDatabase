@@ -83,6 +83,7 @@ async def _handle_ingest_input(user_id: str, entry: dict, raw: bytes, filename: 
     """Store entry in state and prompt Bruce for insight. Does NOT write to Notion."""
     if entry.get("_parse_error"):
         await _push(user_id, "抱歉，這次處理時遇到問題，請再試一次。")
+        await _push(user_id, f"⚠️ [解析失敗內幕]\n{entry.get('_raw_response', '')[:300]}")
         return
     USER_STATES[user_id] = {
         "state": STATE_WAITING_INSIGHT,
@@ -205,17 +206,20 @@ async def handle_text(event):
             content, url = await fetch_url_content(text)
         except Exception as e:
             print(f"[ERROR] fetch_url_content failed: {e}")
+            await _push(user_id, f"⚠️ [爬蟲抓取失敗]\n{e}")
             return
         try:
             entry = await ingest_with_context(content, source_type="url", model=MODEL_HAIKU, source_url=url)
         except Exception as e:
             print(f"[ERROR] ingest_with_context failed: {e}")
+            await _push(user_id, f"⚠️ [AI分析崩潰]\n{e}")
             return
     else:
         try:
             entry = await ingest_with_context(text, source_type="text", model=MODEL_HAIKU)
         except Exception as e:
             print(f"[ERROR] ingest_with_context failed: {e}")
+            await _push(user_id, f"⚠️ [AI分析崩潰]\n{e}")
             return
 
     await _handle_ingest_input(user_id, entry, raw=text.encode(), filename=None)

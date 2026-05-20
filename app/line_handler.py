@@ -28,6 +28,10 @@ STATE_WAITING = "WAITING_FOR_INSIGHT"
 
 REGEN_KEYWORDS = {"換問題", "不滿意", "重新提問", "換個角度", "換一個", "再問一次"}
 
+MODEL_HAIKU = "claude-3-5-haiku-latest"
+MODEL_SONNET = "claude-3-5-sonnet-latest"
+REGEN_SONNET_THRESHOLD = 2
+
 
 async def _push(user_id: str, text: str):
     async with AsyncApiClient(configuration) as api_client:
@@ -76,7 +80,13 @@ async def _handle_ingest_input(user_id: str, entry: dict, raw: bytes, filename: 
     if entry.get("_parse_error"):
         await _push(user_id, "抱歉，這次處理時遇到問題，請再試一次。")
         return
-    USER_STATES[user_id] = {"state": STATE_WAITING, "entry": entry, "raw": raw, "filename": filename}
+    USER_STATES[user_id] = {
+        "state": STATE_WAITING,
+        "entry": entry,
+        "raw": raw,
+        "filename": filename,
+        "regen_count": 0,
+    }
     await _push(user_id, _build_preview_reply(entry))
 
 
@@ -84,16 +94,27 @@ async def _handle_regen(user_id: str):
     """Regenerate questions from a different angle, stay in WAITING state."""
     state = USER_STATES[user_id]
     entry = state["entry"]
+    state["regen_count"] = state.get("regen_count", 0) + 1
+    regen_count = state["regen_count"]
+
+    if regen_count <= REGEN_SONNET_THRESHOLD:
+        model = MODEL_HAIKU
+        prefix = ""
+    else:
+        model = MODEL_SONNET
+        prefix = "🤖 來回激盪已達極限，已為您召喚 Sonnet 進階大腦深度解析：\n\n"
+
     try:
         new_questions = regenerate_questions(
             summary=entry.get("summary", ""),
             previous_questions=entry.get("deepening_questions", []),
+            model=model,
         )
     except Exception as e:
         print(f"[ERROR] regenerate_questions failed: {e}")
         return
     entry["deepening_questions"] = new_questions
-    reply = f"好的，換個角度考考你！🤔\n\n{_format_questions(new_questions)}\n\n💬 請分享您的想法，或再次輸入「換問題」。"
+    reply = f"{prefix}好的，換個角度考考你！🤔\n\n{_format_questions(new_questions)}\n\n💬 請分享您的想法，或再次輸入「換問題」。"
     await _push(user_id, reply)
 
 
@@ -135,7 +156,7 @@ async def handle_text(event):
 
     if intent == "query":
         try:
-            answer = await answer_query(text)
+            answer = await answer_query(text, model=MODEL_HAIKU)
         except Exception as e:
             print(f"[ERROR] answer_query failed: {e}")
             return
@@ -150,13 +171,13 @@ async def handle_text(event):
             print(f"[ERROR] fetch_url_content failed: {e}")
             return
         try:
-            entry = ingest_with_context(content, source_type="url", source_url=url)
+            entry = ingest_with_context(content, source_type="url", model=MODEL_HAIKU, source_url=url)
         except Exception as e:
             print(f"[ERROR] ingest_with_context failed: {e}")
             return
     else:
         try:
-            entry = ingest_with_context(text, source_type="text")
+            entry = ingest_with_context(text, source_type="text", model=MODEL_HAIKU)
         except Exception as e:
             print(f"[ERROR] ingest_with_context failed: {e}")
             return
@@ -177,7 +198,7 @@ async def handle_image(event):
         print(f"[ERROR] parse_image_bytes failed: {e}")
         return
     try:
-        entry = ingest_with_context(description, source_type="image")
+        entry = ingest_with_context(description, source_type="image", model=MODEL_SONNET)
     except Exception as e:
         print(f"[ERROR] ingest_with_context failed: {e}")
         return
@@ -199,7 +220,7 @@ async def handle_file(event):
         print(f"[ERROR] parse_document_bytes failed: {e}")
         return
     try:
-        entry = ingest_with_context(text_content, source_type="file")
+        entry = ingest_with_context(text_content, source_type="file", model=MODEL_SONNET)
     except Exception as e:
         print(f"[ERROR] ingest_with_context failed: {e}")
         return

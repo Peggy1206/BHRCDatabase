@@ -51,10 +51,10 @@ def classify_intent(message: str) -> str:
     return result.get("intent", "ingest")
 
 
-def ingest_text(text: str) -> dict:
+def ingest_text(text: str, model: str) -> dict:
     """Process text input and return structured knowledge entry."""
     response = client.messages.create(
-        model="claude-sonnet-4-6",
+        model=model,
         max_tokens=2000,
         system=SYSTEM_PROMPT,
         messages=[
@@ -64,21 +64,21 @@ def ingest_text(text: str) -> dict:
     return _extract_json(response.content[0].text)
 
 
-def ingest_with_context(text: str, source_type: str, source_url: str = None) -> dict:
+def ingest_with_context(text: str, source_type: str, model: str, source_url: str = None) -> dict:
     """Ingest with additional source metadata."""
     prefix = ""
     if source_url:
         prefix += f"[Source URL: {source_url}]\n\n"
     if source_type != "text":
         prefix += f"[Input type: {source_type}]\n\n"
-    return ingest_text(prefix + text)
+    return ingest_text(prefix + text, model=model)
 
 
-def regenerate_questions(summary: str, previous_questions: list[str]) -> list[str]:
+def regenerate_questions(summary: str, previous_questions: list[str], model: str) -> list[str]:
     """Generate new deepening questions from a completely different angle."""
     prev_q_text = "\n".join(f"- {q}" for q in previous_questions)
     response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model=model,
         max_tokens=400,
         system=SYSTEM_PROMPT,
         messages=[

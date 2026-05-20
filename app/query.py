@@ -48,7 +48,7 @@ async def _get_page_content(page_id: str) -> str:
     return "\n".join(texts)[:3000]
 
 
-async def answer_query(question: str) -> str:
+async def answer_query(question: str, model: str) -> str:
     """Search Notion and synthesize an answer via Claude."""
     pages = await _search_notion(question)
 
@@ -63,7 +63,7 @@ async def answer_query(question: str) -> str:
     context = "\n\n---\n\n".join(context_parts)
 
     response = claude.messages.create(
-        model="claude-sonnet-4-6",
+        model=model,
         max_tokens=1000,
         system=SYSTEM_PROMPT,
         messages=[

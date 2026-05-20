@@ -47,12 +47,12 @@ def _callout(text: str, emoji: str = "💡") -> dict:
 def _build_page_blocks(entry: dict) -> list[dict]:
     blocks = []
 
+    if entry.get("bruce_insight"):
+        blocks.append(_heading("💡 Bruce 的心得", 2))
+        blocks.append(_callout(entry["bruce_insight"], "🧠"))
+
     blocks.append(_heading("摘要", 2))
     blocks.append(_paragraph(entry.get("summary", "")))
-
-    if entry.get("bruce_insight"):
-        blocks.append(_heading("Bruce 的心得", 2))
-        blocks.append(_callout(entry["bruce_insight"], "🧠"))
 
     if entry.get("structured_notes"):
         blocks.append(_heading("結構化分析", 2))
@@ -83,16 +83,19 @@ async def write_entry(entry: dict) -> str:
     emoji = CATEGORY_EMOJI.get(category, "📝")
     tags = [{"name": t} for t in entry.get("tags", [])[:5]]
 
+    props = {
+        "Title": {"title": _rich_text(entry.get("title", "Untitled"))},
+        "Category": {"select": {"name": category}},
+        "Tags": {"multi_select": tags},
+        "Date": {"date": {"start": now}},
+        "Status": {"select": {"name": "Draft" if not entry.get("bruce_insight") else "Complete"}},
+    }
+    if entry.get("source_url"):
+        props["Source URL"] = {"url": entry["source_url"]}
     page = await notion.pages.create(
         parent={"database_id": settings.notion_index_database_id},
         icon={"type": "emoji", "emoji": emoji},
-        properties={
-            "Title": {"title": _rich_text(entry.get("title", "Untitled"))},
-            "Category": {"select": {"name": category}},
-            "Tags": {"multi_select": tags},
-            "Date": {"date": {"start": now}},
-            "Status": {"select": {"name": "Draft" if not entry.get("bruce_insight") else "Complete"}},
-        },
+        properties=props,
         children=_build_page_blocks(entry),
     )
 
@@ -103,12 +106,15 @@ async def write_entry(entry: dict) -> str:
 
 async def _append_log(entry: dict, page_url: str, timestamp: str):
     """Append one row to the log database."""
+    props = {
+        "Title": {"title": _rich_text(entry.get("title", "Untitled"))},
+        "Category": {"select": {"name": entry.get("category", "Events")}},
+        "Timestamp": {"date": {"start": timestamp}},
+        "Page": {"url": page_url},
+    }
+    if entry.get("source_url"):
+        props["Source URL"] = {"url": entry["source_url"]}
     await notion.pages.create(
         parent={"database_id": settings.notion_log_database_id},
-        properties={
-            "Title": {"title": _rich_text(entry.get("title", "Untitled"))},
-            "Category": {"select": {"name": entry.get("category", "Events")}},
-            "Timestamp": {"date": {"start": timestamp}},
-            "Page": {"url": page_url},
-        },
+        properties=props,
     )

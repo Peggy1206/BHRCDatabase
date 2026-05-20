@@ -56,6 +56,7 @@ def ingest_text(text: str, model: str) -> dict:
     response = client.messages.create(
         model=model,
         max_tokens=2000,
+        temperature=0.2,
         system=SYSTEM_PROMPT,
         messages=[
             {"role": "user", "content": INGEST_PROMPT.format(input_text=text)}
@@ -71,7 +72,10 @@ def ingest_with_context(text: str, source_type: str, model: str, source_url: str
         prefix += f"[Source URL: {source_url}]\n\n"
     if source_type != "text":
         prefix += f"[Input type: {source_type}]\n\n"
-    return ingest_text(prefix + text, model=model)
+    entry = ingest_text(prefix + text, model=model)
+    if source_url:
+        entry["source_url"] = source_url
+    return entry
 
 
 def regenerate_questions(summary: str, previous_questions: list[str], model: str) -> list[str]:
@@ -80,6 +84,7 @@ def regenerate_questions(summary: str, previous_questions: list[str], model: str
     response = client.messages.create(
         model=model,
         max_tokens=400,
+        temperature=0.2,
         system=SYSTEM_PROMPT,
         messages=[
             {

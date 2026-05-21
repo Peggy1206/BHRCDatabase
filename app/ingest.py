@@ -30,12 +30,21 @@ _FALLBACK_QUESTIONS = [
 def _extract_json(raw: str) -> dict:
     """Extract and parse JSON from LLM response, handling code fences and prose."""
     match = re.search(r"```json\s*(.*?)\s*```", raw, re.DOTALL)
-    candidate = match.group(1) if match else raw.strip()
+    candidate = match.group(1).strip() if match else raw.strip()
 
     try:
         return json.loads(candidate)
     except json.JSONDecodeError:
-        return {**_PARSE_ERROR_ENTRY, "_raw_response": raw}
+        pass
+
+    brace_match = re.search(r"\{.*\}", candidate, re.DOTALL)
+    if brace_match:
+        try:
+            return json.loads(brace_match.group())
+        except json.JSONDecodeError:
+            pass
+
+    return {**_PARSE_ERROR_ENTRY, "_raw_response": raw}
 
 
 def classify_intent(message: str) -> str:

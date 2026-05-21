@@ -52,8 +52,8 @@ async def _push(user_id: str, text: str):
 
 async def _download_line_content(message_id: str) -> bytes:
     async with AsyncApiClient(configuration) as api_client:
-        line_bot_api = AsyncMessagingApi(api_client)
-        return await line_bot_api.get_message_content(message_id)
+        line_bot_blob_api = AsyncMessagingApiBlob(api_client)
+        return await line_bot_blob_api.get_message_content(message_id)
 
 
 def _is_regen_request(text: str) -> bool:

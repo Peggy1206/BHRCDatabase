@@ -100,6 +100,28 @@ Instructions:
 - Keep the answer under 300 words unless the question requires more depth.
 """
 
+MODIFY_ENTRY_PROMPT = """You are helping Bruce modify a pending knowledge entry before it is saved to BHRC's knowledge base.
+
+Current entry (JSON):
+{entry_json}
+
+Current insight from Bruce:
+{insight}
+
+Modification instruction from Bruce:
+{instruction}
+
+Apply the instruction to the entry or insight and return both updated versions.
+
+Rules:
+- If the instruction targets Bruce's insight (心得), update the insight text accordingly.
+- If the instruction targets entry fields (title/summary/tags/category/structured_notes), update those fields only.
+- Keep all other fields unchanged.
+- Return ONLY a JSON object with exactly two top-level keys:
+  - "entry": the complete updated entry object (same structure as input)
+  - "insight": the updated insight string
+"""
+
 CLASSIFICATION_PROMPT = """Determine if the following message from Bruce is:
 1. A new knowledge entry to be ingested (he is sharing a thought, article, event, or idea)
 2. A question to be answered from the knowledge base

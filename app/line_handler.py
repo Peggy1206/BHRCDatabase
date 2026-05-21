@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 from linebot.v3.messaging import (
     AsyncApiClient,
     AsyncMessagingApi,
@@ -11,7 +12,7 @@ from linebot.v3.messaging import (
 from linebot.v3.webhook import WebhookParser
 
 from app.config import settings
-from app.ingest import classify_intent, ingest_with_context, regenerate_questions
+from app.ingest import classify_intent, ingest_with_context, regenerate_questions, apply_entry_modification
 from app.query import answer_query
 from app.notion_writer import write_entry
 from app.github_client import backup_entry
@@ -27,6 +28,7 @@ USER_STATES: dict[str, dict] = {}
 STATE_IDLE = "IDLE"
 STATE_WAITING_INSIGHT = "WAITING_FOR_INSIGHT"
 STATE_CONFIRM_SAVE = "CONFIRM_SAVE"
+STATE_CONFIRM_CANCEL = "CONFIRM_CANCEL"
 
 CANCEL_KEYWORDS = {"不用存", "取消", "skip", "結束", "下一個"}
 REGEN_KEYWORDS = {"換問題", "不滿意", "重新提問", "換個角度", "換一個", "再問一次"}
@@ -79,6 +81,42 @@ def _build_preview_reply(entry: dict) -> str:
     return reply
 
 
+_CONFIRM_FOOTER = (
+    "\n\n────────────────────\n"
+    "✅ 確認儲存\n"
+    "📝 補充：<追加的內容>\n"
+    "✏️ 修改：<修改指示>\n"
+    "❌ 取消"
+)
+_CONFIRM_FOOTER_LEN = len(_CONFIRM_FOOTER)
+
+
+def _build_confirm_preview(entry: dict, insight: str) -> str:
+    new_cat = f"\n💡 建議新增分類：{entry['suggested_new_category']}" if entry.get("suggested_new_category") else ""
+    header = (
+        f"📋 確認儲存預覽\n\n"
+        f"📰 {entry['title']}\n"
+        f"{entry['summary']}\n\n"
+        f"📂 分類：{entry['category']}{new_cat}\n"
+        f"🏷️ 標籤：{', '.join(entry.get('tags', [])[:5])}\n\n"
+    )
+    notes_section = ""
+    notes = entry.get("structured_notes", "").strip()
+    if notes:
+        notes_section = f"📊 結構化分析：\n{notes}\n\n"
+    insight_section = f"💬 Bruce 的心得：\n{insight}"
+
+    body = header + notes_section + insight_section
+    # Keep total under 5000 chars; trim structured_notes first if needed
+    limit = 5000 - _CONFIRM_FOOTER_LEN
+    if len(body) > limit and notes_section:
+        overflow = len(body) - limit
+        trimmed_notes = notes[: max(0, len(notes) - overflow - 10)] + "…"
+        notes_section = f"📊 結構化分析：\n{trimmed_notes}\n\n"
+        body = header + notes_section + insight_section
+    return (body + _CONFIRM_FOOTER)[:5000]
+
+
 async def _handle_ingest_input(user_id: str, entry: dict, raw: bytes, filename: str | None):
     """Store entry in state and prompt Bruce for insight. Does NOT write to Notion."""
     if entry.get("_parse_error"):
@@ -124,17 +162,73 @@ async def _handle_regen(user_id: str):
 
 
 async def _save_insight_pending(user_id: str, insight: str):
-    """Save Bruce's insight to state and request final confirmation. Does NOT write to Notion."""
+    """Save Bruce's insight to state and show confirm preview. Does NOT write to Notion."""
     state = USER_STATES.get(user_id)
     if not state:
         await _push(user_id, "找不到暫存資料，請重新輸入。")
         return
     state["insight"] = insight
     state["state"] = STATE_CONFIRM_SAVE
-    await _push(
-        user_id,
-        "💡 Bruce 的心得已收到！\n\n確定要將本篇摘要與心得同步至 BHRC 知識庫嗎？\n請回覆：【確認儲存】 或 【取消】",
-    )
+    await _push(user_id, _build_confirm_preview(state["entry"], insight))
+
+
+async def _handle_confirm_save(user_id: str, text: str):
+    state = USER_STATES.get(user_id)
+    if not state:
+        await _push(user_id, "找不到暫存資料，請重新輸入。")
+        return
+
+    if "確認儲存" in text:
+        await _commit_entry(user_id)
+    elif re.match(r"^補充[：:]", text):
+        addition = re.sub(r"^補充[：:]", "", text).strip()
+        state["insight"] = state.get("insight", "") + "\n" + addition
+        await _push(user_id, _build_confirm_preview(state["entry"], state["insight"]))
+    elif re.match(r"^修改[：:]", text):
+        instruction = re.sub(r"^修改[：:]", "", text).strip()
+        await _apply_modification(user_id, instruction)
+    elif "取消" in text:
+        state["state"] = STATE_CONFIRM_CANCEL
+        await _push(user_id, "⚠️ 這會放棄本次對話，確定要作廢嗎？\n請回覆：【放棄】 或 【繼續編輯】")
+    else:
+        await _push(user_id, "請回覆：【確認儲存】、補充：<內容>、修改：<指示>，或【取消】")
+
+
+async def _handle_confirm_cancel(user_id: str, text: str):
+    if "放棄" in text:
+        USER_STATES.pop(user_id, None)
+        await _push(user_id, "👌 已為您取消本次對話，狀態已完全重置，未寫入任何資料庫。")
+    elif "繼續編輯" in text:
+        state = USER_STATES.get(user_id)
+        if state:
+            state["state"] = STATE_CONFIRM_SAVE
+            await _push(user_id, _build_confirm_preview(state["entry"], state.get("insight", "")))
+        else:
+            await _push(user_id, "找不到暫存資料，請重新輸入。")
+    else:
+        await _push(user_id, "請回覆：【放棄】 或 【繼續編輯】")
+
+
+async def _apply_modification(user_id: str, instruction: str):
+    state = USER_STATES.get(user_id)
+    if not state:
+        await _push(user_id, "找不到暫存資料，請重新輸入。")
+        return
+    await _push(user_id, "⏳ 正在處理修改，請稍候…")
+    try:
+        updated_entry, updated_insight = await asyncio.to_thread(
+            apply_entry_modification,
+            entry=state["entry"],
+            insight=state.get("insight", ""),
+            instruction=instruction,
+        )
+        state["entry"] = updated_entry
+        state["insight"] = updated_insight
+        await _push(user_id, _build_confirm_preview(state["entry"], state["insight"]))
+    except Exception as e:
+        print(f"[ERROR] apply_entry_modification failed: {e}")
+        await _push(user_id, f"⚠️ 修改失敗：{e}\n\n維持原本的預覽：")
+        await _push(user_id, _build_confirm_preview(state["entry"], state.get("insight", "")))
 
 
 async def _commit_entry(user_id: str):
@@ -159,7 +253,17 @@ async def handle_text(event):
     text = event.message.text.strip()
     current_state = USER_STATES.get(user_id, {}).get("state", STATE_IDLE)
 
-    # ── 全域萬能終止指令（最高優先，任何狀態皆有效）──
+    # ── 第三階段：確認儲存（優先於全域取消，支援補充／修改／二次確認取消）──
+    if current_state == STATE_CONFIRM_SAVE:
+        await _handle_confirm_save(user_id, text)
+        return
+
+    # ── 二次確認取消 ──
+    if current_state == STATE_CONFIRM_CANCEL:
+        await _handle_confirm_cancel(user_id, text)
+        return
+
+    # ── 全域萬能終止指令（IDLE / WAITING_INSIGHT 狀態有效）──
     if any(kw in text for kw in CANCEL_KEYWORDS):
         USER_STATES.pop(user_id, None)
         await _push(user_id, "👌 已為您取消本次對話，狀態已完全重置，未寫入任何資料庫。")
@@ -176,15 +280,6 @@ async def handle_text(event):
             await _handle_regen(user_id)
         else:
             await _save_insight_pending(user_id, text)
-        return
-
-    # ── 第三階段：等待最終確認 ──
-    if current_state == STATE_CONFIRM_SAVE:
-        if "確認儲存" in text:
-            await _commit_entry(user_id)
-        else:
-            USER_STATES.pop(user_id, None)
-            await _push(user_id, "👌 已為您取消本次對話，狀態已完全重置，未寫入任何資料庫。")
         return
 
     # ── IDLE：意圖分類 ──
@@ -231,7 +326,7 @@ async def handle_text(event):
 async def handle_image(event):
     user_id = event.source.user_id
     current_state = USER_STATES.get(user_id, {}).get("state", STATE_IDLE)
-    if current_state in (STATE_WAITING_INSIGHT, STATE_CONFIRM_SAVE):
+    if current_state in (STATE_WAITING_INSIGHT, STATE_CONFIRM_SAVE, STATE_CONFIRM_CANCEL):
         await _push(user_id, "請先完成目前的存檔流程，再傳送新的圖片。")
         return
 
@@ -253,7 +348,7 @@ async def handle_image(event):
 async def handle_file(event):
     user_id = event.source.user_id
     current_state = USER_STATES.get(user_id, {}).get("state", STATE_IDLE)
-    if current_state in (STATE_WAITING_INSIGHT, STATE_CONFIRM_SAVE):
+    if current_state in (STATE_WAITING_INSIGHT, STATE_CONFIRM_SAVE, STATE_CONFIRM_CANCEL):
         await _push(user_id, "請先完成目前的存檔流程，再傳送新的檔案。")
         return
 

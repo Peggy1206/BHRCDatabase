@@ -3,7 +3,7 @@ import json
 import re
 import anthropic
 from app.config import settings
-from app.prompts import SYSTEM_PROMPT, INGEST_PROMPT, CLASSIFICATION_PROMPT, REGENERATE_QUESTIONS_PROMPT
+from app.prompts import SYSTEM_PROMPT, INGEST_PROMPT, CLASSIFICATION_PROMPT, REGENERATE_QUESTIONS_PROMPT, MODIFY_ENTRY_PROMPT
 
 client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
@@ -92,6 +92,26 @@ async def ingest_with_context(text: str, source_type: str, model: str, source_ur
     if source_url:
         entry["source_url"] = source_url
     return entry
+
+
+def apply_entry_modification(entry: dict, insight: str, instruction: str, model: str = "claude-haiku-4-5-20251001") -> tuple[dict, str]:
+    """Apply a natural-language modification instruction to a pending entry and insight."""
+    prompt = MODIFY_ENTRY_PROMPT.format(
+        entry_json=json.dumps(entry, ensure_ascii=False, indent=2),
+        insight=insight,
+        instruction=instruction,
+    )
+    response = client.messages.create(
+        model=model,
+        max_tokens=4096,
+        temperature=0.1,
+        system=SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    result = _extract_json(response.content[0].text)
+    updated_entry = result.get("entry", entry)
+    updated_insight = result.get("insight", insight)
+    return updated_entry, updated_insight
 
 
 def regenerate_questions(summary: str, previous_questions: list[str], model: str) -> list[str]:

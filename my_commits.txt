@@ -1,0 +1,21 @@
+2026-05-21	5ac88b0	fix: increase max_tokens to 8192 to prevent JSON truncation
+2026-05-21	7c174b5	fix: robust JSON extraction using regex and silent line handler fallback
+2026-05-20	b09c6a1	fix: expose raw Claude output on parse error for debugging
+2026-05-20	8b62f2b	fix: update theory fallback and enable X-ray error reporting to LINE
+2026-05-20	31ec357	feat: upgrade to ultimate dynamic brain with 3-stage save and anti-crawling
+2026-05-20	04cd290	[Frameworks] Claude 語言模型：AI 技術發展與應用
+2026-05-20	1d58b66	[Frameworks] Claude 語言模型：AI 技術發展與應用
+2026-05-20	274f8e5	fix: update line_handler.py and notion_writer.py for greeting message
+2026-05-20	f570285	[Events] 初始問候
+2026-05-20	1fdb3d8	[Events] 初始問候
+2026-05-20	1ff0074	fix: async webhook to prevent LINE timeout, enforce zh-TW, and optimize Notion insight layout
+2026-05-20	3cc7a63	[Events] Claude Code vs Codex: When Product Experience Overtakes Model Intelligence
+2026-05-20	ac7ec97	[Events] Claude Code vs Codex: When Product Experience Overtakes Model Intelligence
+2026-05-20	bb2ed7e	[Events] Claude Code vs Codex: When Product Experience Trumps Model Intelligence
+2026-05-20	a389f1b	[Events] Claude Code vs Codex: When Product Experience Trumps Model Intelligence
+2026-05-20	a6c293c	feat: haiku, sonnet model registry
+2026-05-20	48b4925	feat: complete model routing (Haiku as default, Sonnet for advanced tasks)
+2026-05-20	8d0f029	fix: upgrade to push_message and add global exception handler
+2026-05-19	72e81d2	fix: replace AsyncWebhookHandler with WebhookParser
+2026-05-19	a18e25b	fix: correct AsyncWebhookHandler import path
+2026-05-19	efae277	feat: first release of BHRC bot

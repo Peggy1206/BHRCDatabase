@@ -86,7 +86,7 @@ async def _handle_ingest_input(user_id: str, entry: dict, raw: bytes, filename: 
         # await _push(user_id, "抱歉，這次處理時遇到問題，請再試一次。")
         # await _push(user_id, f"⚠️ [解析失敗內幕]\n{entry.get('_raw_response', '')[:300]}")
         raw_text = entry.get('_raw_response', '沒有內容')
-        await _push(user_id, f"⚠️ Claude 吐出的格式不對，這是它給的原始內容：\n{raw_text[:400]}")
+        await _push(user_id, f"⚠️ JSON 解析失敗，這通常是輸出被截斷或含有跳脫字元。結尾內容為：\n{raw_text[-300:]}")
         return
     USER_STATES[user_id] = {
         "state": STATE_WAITING_INSIGHT,

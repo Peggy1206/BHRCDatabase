@@ -12,6 +12,13 @@ CATEGORY_EMOJI = {
     "Frameworks": "🧠",
 }
 
+_IMAGE_EXTS = frozenset({"jpg", "jpeg", "png", "gif", "webp", "svg", "bmp", "tiff"})
+
+
+def _is_image(filename: str) -> bool:
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    return ext in _IMAGE_EXTS
+
 
 def _rich_text(content: str) -> list[dict]:
     return [{"type": "text", "text": {"content": content[:2000]}}]
@@ -44,12 +51,31 @@ def _callout(text: str, emoji: str = "💡") -> dict:
     }
 
 
-def _build_page_blocks(entry: dict) -> list[dict]:
+def _build_page_blocks(
+    entry: dict,
+    media_url: str | None = None,
+    filename: str | None = None,
+) -> list[dict]:
     blocks = []
 
-    if entry.get("bruce_insight"):
-        blocks.append(_heading("💡 Bruce 的心得", 2))
-        blocks.append(_callout(entry["bruce_insight"], "🧠"))
+    # Media embed at the very top (image or file from LINE)
+    if media_url and filename:
+        if _is_image(filename):
+            blocks.append({
+                "object": "block",
+                "type": "image",
+                "image": {"type": "external", "external": {"url": media_url}},
+            })
+        else:
+            blocks.append({
+                "object": "block",
+                "type": "file",
+                "file": {"type": "external", "external": {"url": media_url}, "name": filename},
+            })
+    elif filename:
+        # GitHub backup succeeded but URL unavailable (e.g. private repo)
+        label = "圖片" if _is_image(filename) else "檔案"
+        blocks.append(_callout(f"📎 原始{label}（{filename}）已備份至 GitHub", "📁"))
 
     blocks.append(_heading("摘要", 2))
     blocks.append(_paragraph(entry.get("summary", "")))
@@ -76,8 +102,12 @@ def _build_page_blocks(entry: dict) -> list[dict]:
     return blocks
 
 
-async def write_entry(entry: dict) -> str:
-    """Create a Notion page for the entry and log it. Returns the page URL."""
+async def write_entry(
+    entry: dict,
+    media_url: str | None = None,
+    filename: str | None = None,
+) -> str:
+    """Create a Notion Index page and write a Log entry. Returns the Index page URL."""
     now = datetime.now(timezone.utc).isoformat()
     category = entry.get("category", "Events")
     emoji = CATEGORY_EMOJI.get(category, "📝")
@@ -88,15 +118,16 @@ async def write_entry(entry: dict) -> str:
         "Category": {"select": {"name": category}},
         "Tags": {"multi_select": tags},
         "Date": {"date": {"start": now}},
-        "Status": {"select": {"name": "Draft" if not entry.get("bruce_insight") else "Complete"}},
+        "Status": {"select": {"name": "Draft"}},
     }
     if entry.get("source_url"):
         props["Source URL"] = {"url": entry["source_url"]}
+
     page = await notion.pages.create(
         parent={"database_id": settings.notion_index_database_id},
         icon={"type": "emoji", "emoji": emoji},
         properties=props,
-        children=_build_page_blocks(entry),
+        children=_build_page_blocks(entry, media_url=media_url, filename=filename),
     )
 
     page_url = page.get("url", "")
@@ -132,15 +163,14 @@ async def get_latest_theory() -> str:
 
 
 async def _append_log(entry: dict, page_url: str, timestamp: str):
-    """Append one row to the log database."""
+    """Append one row to the Log database. Source URL always points to the Index page."""
     props = {
         "Title": {"title": _rich_text(entry.get("title", "Untitled"))},
         "Category": {"select": {"name": entry.get("category", "Events")}},
         "Timestamp": {"date": {"start": timestamp}},
-        "Source URL": {"url": page_url},
     }
-    if entry.get("source_url"):
-        props["Source URL"] = {"url": entry["source_url"]}
+    if page_url:
+        props["Source URL"] = {"url": page_url}
     await notion.pages.create(
         parent={"database_id": settings.notion_log_database_id},
         properties=props,

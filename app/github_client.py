@@ -62,8 +62,12 @@ def _commit_file(path: str, content: bytes, message: str):
         _repo.create_file(path, message, content, branch=settings.github_branch)
 
 
-async def backup_entry(entry: dict, raw_content: bytes, filename: str | None = None):
-    """Commit markdown wiki page and original file to GitHub without blocking event loop."""
+async def backup_entry(entry: dict, raw_content: bytes, filename: str | None = None) -> str:
+    """Backup markdown wiki page and original file to GitHub.
+
+    Returns the raw.githubusercontent.com URL of the backed-up raw file,
+    which can be used as an external image/file URL in Notion (requires public repo).
+    """
     now = datetime.now(timezone.utc)
     date_prefix = now.strftime("%Y/%m")
     safe_title = _safe_filename(entry.get("title", "untitled"))
@@ -87,3 +91,5 @@ async def backup_entry(entry: dict, raw_content: bytes, filename: str | None = N
         raw_path = f"raw/{category_slug}/{date_prefix}/{timestamp}_{safe_title}.txt"
 
     await asyncio.to_thread(_commit_file, raw_path, raw_content, commit_msg)
+
+    return f"https://raw.githubusercontent.com/{settings.github_repo}/{settings.github_branch}/{raw_path}"

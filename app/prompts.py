@@ -61,30 +61,6 @@ Return a JSON object with these exact fields:
 Be precise. The category must be exactly one of the five listed options (or suggest a new one separately).
 """
 
-REGENERATE_QUESTIONS_PROMPT = """Bruce was not satisfied with the previous questions about this content.
-Please generate 2 completely new deepening questions from a different angle or perspective.
-
-Original content summary:
-{summary}
-
-Original questions Bruce did not like:
-{previous_questions}
-
-Instructions:
-- Choose a completely different angle (e.g., if the previous questions were strategic, try operational or personal)
-- Make the questions specific to the headhunting / executive search industry context
-- Help Bruce surface a non-obvious insight he might not have considered
-- Respond in the same language as the summary
-
-Return JSON:
-{{
-  "deepening_questions": [
-    "New question 1",
-    "New question 2"
-  ]
-}}
-"""
-
 QUERY_PROMPT = """Bruce is asking a question. Use the retrieved knowledge base context below to synthesize a helpful answer.
 
 Bruce's question: {question}
@@ -98,28 +74,6 @@ Instructions:
 - If the context is insufficient, say so clearly and suggest what type of information might help.
 - Respond in the same language as Bruce's question.
 - Keep the answer under 300 words unless the question requires more depth.
-"""
-
-MODIFY_ENTRY_PROMPT = """You are helping Bruce modify a pending knowledge entry before it is saved to BHRC's knowledge base.
-
-Current entry (JSON):
-{entry_json}
-
-Current insight from Bruce:
-{insight}
-
-Modification instruction from Bruce:
-{instruction}
-
-Apply the instruction to the entry or insight and return both updated versions.
-
-Rules:
-- If the instruction targets Bruce's insight (心得), update the insight text accordingly.
-- If the instruction targets entry fields (title/summary/tags/category/structured_notes), update those fields only.
-- Keep all other fields unchanged.
-- Return ONLY a JSON object with exactly two top-level keys:
-  - "entry": the complete updated entry object (same structure as input)
-  - "insight": the updated insight string
 """
 
 CLASSIFICATION_PROMPT = """Determine if the following message from Bruce is:

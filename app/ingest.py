@@ -3,7 +3,7 @@ import json
 import re
 import anthropic
 from app.config import settings
-from app.prompts import SYSTEM_PROMPT, INGEST_PROMPT, CLASSIFICATION_PROMPT, REGENERATE_QUESTIONS_PROMPT, MODIFY_ENTRY_PROMPT
+from app.prompts import SYSTEM_PROMPT, INGEST_PROMPT, CLASSIFICATION_PROMPT
 
 client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
@@ -20,11 +20,6 @@ _PARSE_ERROR_ENTRY = {
     "language": "zh-TW",
     "_parse_error": True,
 }
-
-_FALLBACK_QUESTIONS = [
-    "請問您對此內容有哪些延伸想法？",
-    "這個事件對 BHRC 的業務有什麼啟示？",
-]
 
 
 def _extract_json(raw: str) -> dict:
@@ -94,45 +89,3 @@ async def ingest_with_context(text: str, source_type: str, model: str, source_ur
     return entry
 
 
-def apply_entry_modification(entry: dict, insight: str, instruction: str, model: str = "claude-haiku-4-5-20251001") -> tuple[dict, str]:
-    """Apply a natural-language modification instruction to a pending entry and insight."""
-    prompt = MODIFY_ENTRY_PROMPT.format(
-        entry_json=json.dumps(entry, ensure_ascii=False, indent=2),
-        insight=insight,
-        instruction=instruction,
-    )
-    response = client.messages.create(
-        model=model,
-        max_tokens=4096,
-        temperature=0.1,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    result = _extract_json(response.content[0].text)
-    updated_entry = result.get("entry", entry)
-    updated_insight = result.get("insight", insight)
-    return updated_entry, updated_insight
-
-
-def regenerate_questions(summary: str, previous_questions: list[str], model: str) -> list[str]:
-    """Generate new deepening questions from a completely different angle."""
-    prev_q_text = "\n".join(f"- {q}" for q in previous_questions)
-    response = client.messages.create(
-        model=model,
-        max_tokens=400,
-        temperature=0.2,
-        system=SYSTEM_PROMPT,
-        messages=[
-            {
-                "role": "user",
-                "content": REGENERATE_QUESTIONS_PROMPT.format(
-                    summary=summary,
-                    previous_questions=prev_q_text,
-                ),
-            }
-        ],
-    )
-    result = _extract_json(response.content[0].text)
-    # Use falsy check to catch both missing key and empty list from parse errors
-    questions = result.get("deepening_questions")
-    return questions if questions else _FALLBACK_QUESTIONS

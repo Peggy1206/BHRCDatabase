@@ -17,11 +17,7 @@ def _build_markdown(entry: dict) -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     tags = ", ".join(entry.get("tags", []))
     questions = "\n".join(f"- {q}" for q in entry.get("deepening_questions", []))
-    entity_lines = [
-        f"**{k.capitalize()}**: {', '.join(v)}"
-        for k, v in entry.get("entities", {}).items()
-        if v
-    ]
+    entity_lines = [f"- {e}" for e in entry.get("entities", []) if e]
 
     return f"""# {entry.get("title", "Untitled")}
 

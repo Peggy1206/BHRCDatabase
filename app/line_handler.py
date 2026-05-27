@@ -76,6 +76,7 @@ async def _run_pipeline(
             print(f"[ERROR] GitHub backup failed: {e}")
             await _push(user_id, f"⚠️ GitHub 備份失敗：{e}")
 
+        print(f"[DEBUG] _run_pipeline github_url={github_url!r} filename={filename!r}")
         try:
             await write_entry(entry, media_url=github_url, filename=filename)
         except Exception as e:

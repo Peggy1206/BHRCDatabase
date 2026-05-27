@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 from notion_client import AsyncClient
 from app.config import settings
@@ -13,6 +14,7 @@ CATEGORY_EMOJI = {
 }
 
 _IMAGE_EXTS = frozenset({"jpg", "jpeg", "png", "gif", "webp", "svg", "bmp", "tiff"})
+_BOLD_RE = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
 
 
 def _is_image(filename: str) -> bool:
@@ -21,7 +23,22 @@ def _is_image(filename: str) -> bool:
 
 
 def _rich_text(content: str) -> list[dict]:
-    return [{"type": "text", "text": {"content": content[:2000]}}]
+    """Split inline **bold** markers into Notion rich_text objects with bold annotations."""
+    parts = _BOLD_RE.split(content)
+    result = []
+    for i, part in enumerate(parts):
+        if not part:
+            continue
+        # re.split with a capturing group: even indices = plain text, odd = captured bold
+        if i % 2 == 1:
+            result.append({
+                "type": "text",
+                "text": {"content": part[:2000]},
+                "annotations": {"bold": True},
+            })
+        else:
+            result.append({"type": "text", "text": {"content": part[:2000]}})
+    return result or [{"type": "text", "text": {"content": ""}}]
 
 
 def _heading(text: str, level: int = 2) -> dict:

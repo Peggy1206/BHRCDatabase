@@ -53,8 +53,12 @@ def _commit_file(path: str, content: bytes, message: str):
     """Create or update a file in the GitHub repo (synchronous)."""
     try:
         existing = _repo.get_contents(path, ref=settings.github_branch)
-        _repo.update_file(path, message, content, existing.sha, branch=settings.github_branch)
     except GithubException:
+        existing = None
+
+    if existing:
+        _repo.update_file(path, message, content, existing.sha, branch=settings.github_branch)
+    else:
         _repo.create_file(path, message, content, branch=settings.github_branch)
 
 
@@ -88,4 +92,6 @@ async def backup_entry(entry: dict, raw_content: bytes, filename: str | None = N
 
     await asyncio.to_thread(_commit_file, raw_path, raw_content, commit_msg)
 
-    return f"https://raw.githubusercontent.com/{settings.github_repo}/{settings.github_branch}/{raw_path}"
+    raw_url = f"https://raw.githubusercontent.com/{settings.github_repo}/{settings.github_branch}/{raw_path}"
+    print(f"[DEBUG] backup_entry returning URL: {raw_url}")
+    return raw_url

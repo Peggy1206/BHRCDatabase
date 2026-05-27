@@ -106,6 +106,10 @@ async def _pipeline_url(user_id: str, url: str):
     await _run_pipeline(user_id, entry, raw_bytes=url.encode(), filename=None, embed_media=False)
 
 
+async def _pipeline_youtube(user_id: str, url: str):
+    await _push(user_id, "🎥 偵測到 YouTube 影片！影片解析專屬管線（Gemini 大腦）即將上線，敬請期待！")
+
+
 async def _pipeline_text(user_id: str, text: str):
     try:
         entry = await ingest_with_context(text, source_type="text", model=MODEL_HAIKU)
@@ -149,7 +153,10 @@ async def handle_text(event):
     # URL — immediate ack, background pipeline
     if text.startswith("http://") or text.startswith("https://"):
         await _push(user_id, _ACK_MESSAGE)
-        asyncio.create_task(_pipeline_url(user_id, text))
+        if "youtube.com" in text or "youtu.be" in text:
+            asyncio.create_task(_pipeline_youtube(user_id, text))
+        else:
+            asyncio.create_task(_pipeline_url(user_id, text))
         return
 
     # Classify intent for plain text

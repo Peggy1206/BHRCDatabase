@@ -40,6 +40,30 @@ def _paragraph(text: str) -> dict:
     }
 
 
+def _bulleted_item(text: str) -> dict:
+    return {
+        "object": "block",
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {"rich_text": _rich_text(text)},
+    }
+
+
+def _parse_markdown_to_blocks(md_text: str) -> list[dict]:
+    blocks = []
+    for line in md_text.splitlines():
+        if not line.strip():
+            continue
+        if line.startswith("### "):
+            blocks.append(_heading(line[4:].strip(), 3))
+        elif line.startswith("## "):
+            blocks.append(_heading(line[3:].strip(), 2))
+        elif line.startswith("- ") or line.startswith("* "):
+            blocks.append(_bulleted_item(line[2:].strip()))
+        else:
+            blocks.append(_paragraph(line))
+    return blocks
+
+
 def _callout(text: str, emoji: str = "💡") -> dict:
     return {
         "object": "block",
@@ -80,24 +104,22 @@ def _build_page_blocks(
     blocks.append(_heading("摘要", 2))
     blocks.append(_paragraph(entry.get("summary", "")))
 
+    entities = entry.get("entities", [])
+    concepts = entry.get("concepts", [])
+    if entities:
+        blocks.append(_paragraph(f"👤 關聯實體: {', '.join(entities)}"))
+    if concepts:
+        blocks.append(_paragraph(f"💡 核心概念: {', '.join(concepts)}"))
+
     if entry.get("structured_notes"):
         blocks.append(_heading("結構化分析", 2))
-        blocks.append(_paragraph(entry["structured_notes"]))
+        blocks.extend(_parse_markdown_to_blocks(entry["structured_notes"]))
 
     questions = entry.get("deepening_questions", [])
     if questions:
         blocks.append(_heading("延伸思考問題", 2))
         for q in questions:
             blocks.append(_paragraph(f"• {q}"))
-
-    entities = entry.get("entities", {})
-    entity_parts = []
-    for key, values in entities.items():
-        if values:
-            entity_parts.append(f"**{key.capitalize()}**: {', '.join(values)}")
-    if entity_parts:
-        blocks.append(_heading("相關實體", 2))
-        blocks.append(_paragraph("\n".join(entity_parts)))
 
     return blocks
 
@@ -111,12 +133,14 @@ async def write_entry(
     now = datetime.now(timezone.utc).isoformat()
     category = entry.get("category", "Events")
     emoji = CATEGORY_EMOJI.get(category, "📝")
-    tags = [{"name": t} for t in entry.get("tags", [])[:5]]
+    entities_ms = [{"name": e} for e in entry.get("entities", [])[:10]]
+    concepts_ms = [{"name": c} for c in entry.get("concepts", [])[:10]]
 
     props = {
         "Title": {"title": _rich_text(entry.get("title", "Untitled"))},
         "Category": {"select": {"name": category}},
-        "Tags": {"multi_select": tags},
+        "Entities": {"multi_select": entities_ms},
+        "Concepts": {"multi_select": concepts_ms},
         "Date": {"date": {"start": now}},
         "Status": {"select": {"name": "Draft"}},
     }
